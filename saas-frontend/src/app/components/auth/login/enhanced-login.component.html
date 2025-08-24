@@ -1,0 +1,68 @@
+<div class="login-container">
+  <div class="login-card">
+    <!-- Header -->
+    <div class="login-header">
+      <div class="logo">
+        <div class="logo-icon">🏭</div>
+        <h1>SaaS Factory</h1>
+      </div>
+      <p class="tagline">Enterprise Platform Management</p>
+    </div>
+
+    <!-- Login Content -->
+    <div class="login-content">
+      <h2>Platform Administrator Login</h2>
+      
+      <!-- Loading State -->
+      <div *ngIf="isLoading" class="loading-section">
+        <div class="loading-spinner"></div>
+        <p>{{loadingMessage}}</p>
+      </div>
+
+      <!-- Login Section -->
+      <div *ngIf="!isLoading && !isAuthenticated" class="login-section">
+        <p class="login-description">
+          Sign in with your corporate Azure AD account to access the SaaS Factory platform administration
+        </p>
+
+        <button 
+          class="btn-login btn-azure" 
+          (click)="loginWithAzureAD()"
+          [disabled]="isLoading">
+          <span class="login-icon">
+            <svg width="20" height="20" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M11 0H0V11H11V0Z" fill="#F25022"/>
+              <path d="M23 0H12V11H23V0Z" fill="#7FBA00"/>
+              <path d="M11 12H0V23H11V12Z" fill="#00A4EF"/>
+              <path d="M23 12H12V23H23V12Z" fill="#FFB900"/>
+            </svg>
+          </span>
+          Login with Azure AD
+        </button>
+
+        <!-- Error Message -->
+        <div *ngIf="errorMessage" class="error-message">
+          <span class="error-icon">⚠️</span>
+          <div class="error-content">
+            <p>{{errorMessage}}</p>
+          </div>
+        </div>
+
+        <!-- Help Section -->
+        <div class="login-help">
+          <p class="help-title">Need Help?</p>
+          <ul>
+            <li>Use your corporate Microsoft account</li>
+            <li>Contact your IT administrator if you don't have access</li>
+            <li>For tenant admin login, use your tenant-specific URL</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="login-footer">
+      <p>© 2024 SaaS Factory. Built for Enterprise Excellence.</p>
+    </div>
+  </div>
+</div>

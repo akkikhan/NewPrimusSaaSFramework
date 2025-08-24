@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Platform - Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+            padding: 40px 20px;
+        }
+        .logo {
+            font-size: 3em;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .status {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .success {
+            background: rgba(76, 175, 80, 0.3);
+            border: 2px solid #4CAF50;
+        }
+        .info {
+            background: rgba(33, 150, 243, 0.3);
+            border: 2px solid #2196F3;
+        }
+        .feature {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            margin: 10px;
+            border-radius: 8px;
+            display: inline-block;
+            min-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🚀 SaaS Platform</div>
+        <h1>Multi-Tenant SaaS Framework</h1>
+        
+        <div class="status success">
+            ✅ Platform Deployed Successfully
+        </div>
+        
+        <div class="status info">
+            🔧 Azure Integration Complete
+        </div>
+        
+        <h2>Platform Features</h2>
+        <div class="feature">
+            🔐 Authentication Service<br>
+            <small>JWT + Azure AD</small>
+        </div>
+        <div class="feature">
+            📧 Email Notifications<br>
+            <small>Office365 SMTP</small>
+        </div>
+        <div class="feature">
+            🏢 Multi-Tenant Support<br>
+            <small>Cosmos DB Backend</small>
+        </div>
+        <div class="feature">
+            🔒 RBAC Security<br>
+            <small>Role-Based Access</small>
+        </div>
+        
+        <h2>Infrastructure</h2>
+        <div class="status">
+            <strong>Container Apps:</strong> ✅ Deployed<br>
+            <strong>Cosmos DB:</strong> ✅ Connected<br>
+            <strong>Key Vault:</strong> ✅ Configured<br>
+            <strong>SMTP:</strong> ✅ Office365 Ready<br>
+            <strong>Container Registry:</strong> ✅ Active
+        </div>
+        
+        <div style="margin-top: 40px; font-size: 0.9em; opacity: 0.8;">
+            Deployment Date: <script>document.write(new Date().toLocaleString())</script><br>
+            Resource Group: saas-platform-rg + rg-saas-factory-dev<br>
+            Environment: Production
+        </div>
+    </div>
+</body>
+</html>

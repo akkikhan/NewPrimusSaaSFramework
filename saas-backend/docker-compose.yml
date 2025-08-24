@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: src/Gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    depends_on:
+      - authentication
+      - rbac
+      - notifications
+
+  authentication:
+    build:
+      context: .
+      dockerfile: src/Authentication/Dockerfile
+    ports:
+      - "7011:7011"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:7011
+
+  rbac:
+    build:
+      context: .
+      dockerfile: src/RBAC/Dockerfile
+    ports:
+      - "7002:7002"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:7002
+
+  notifications:
+    build:
+      context: .
+      dockerfile: src/Notifications/Dockerfile
+    ports:
+      - "7015:7015"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:7015
+
+networks:
+  default:
+    name: saas-framework-network

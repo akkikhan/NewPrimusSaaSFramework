@@ -1,0 +1,316 @@
+<div class="idp-onboarding-container">
+  <!-- Header -->
+  <div class="onboarding-header">
+    <h1>Direct Identity Provider Integration</h1>
+    <p class="subtitle">Configure your tenant to integrate directly with Azure AD or Auth0</p>
+  </div>
+
+  <!-- Progress Indicator -->
+  <div class="progress-indicator" *ngIf="!onboardingResult">
+    <div class="progress-steps">
+      <div class="step" [class.active]="currentStep === 1" [class.completed]="currentStep > 1">
+        <span class="step-number">1</span>
+        <span class="step-label">Company details</span>
+      </div>
+      <div class="step-connector" [class.active]="currentStep > 1"></div>
+      <div class="step" [class.active]="currentStep === 2" [class.completed]="currentStep > 2">
+        <span class="step-number">2</span>
+        <span class="step-label">Select modules</span>
+      </div>
+      <div class="step-connector" [class.active]="currentStep > 2"></div>
+      <div class="step" [class.active]="currentStep === 3" [class.completed]="currentStep > 3">
+        <span class="step-number">3</span>
+        <span class="step-label">Per-module config</span>
+      </div>
+      <div class="step-connector" [class.active]="currentStep > 3"></div>
+      <div class="step" [class.active]="currentStep === 4" [class.completed]="currentStep > 4">
+        <span class="step-number">4</span>
+        <span class="step-label">Review</span>
+      </div>
+      <div class="step-connector" [class.active]="currentStep > 4"></div>
+      <div class="step" [class.active]="currentStep === 5">
+        <span class="step-number">5</span>
+        <span class="step-label">Provision &amp; enable</span>
+      </div>
+    </div>
+  </div>
+  <!-- Onboarding Form -->
+  <form [formGroup]="onboardingForm" (ngSubmit)="onSubmit()" *ngIf="!onboardingResult">
+    <!-- Step 1: Company Information -->
+    <div class="form-step" *ngIf="currentStep === 1">
+      <h2>Company Information</h2>
+      <p class="step-description">Let's start with basic information about your organization</p>
+
+      <div class="form-group">
+        <label for="companyName">Company Name *</label>
+        <input id="companyName" type="text" class="form-control" formControlName="companyName" [class.is-invalid]="onboardingForm.get('companyName')?.invalid && onboardingForm.get('companyName')?.touched">
+        <div class="invalid-feedback" *ngIf="onboardingForm.get('companyName')?.invalid && onboardingForm.get('companyName')?.touched">
+          Company name is required
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="adminName">Administrator Name *</label>
+        <input id="adminName" type="text" class="form-control" formControlName="adminName" [class.is-invalid]="onboardingForm.get('adminName')?.invalid && onboardingForm.get('adminName')?.touched">
+        <div class="invalid-feedback" *ngIf="onboardingForm.get('adminName')?.invalid && onboardingForm.get('adminName')?.touched">
+          Administrator name is required
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="adminEmail">Administrator Email *</label>
+        <input id="adminEmail" type="email" class="form-control" formControlName="adminEmail" [class.is-invalid]="onboardingForm.get('adminEmail')?.invalid && onboardingForm.get('adminEmail')?.touched">
+        <div class="invalid-feedback" *ngIf="onboardingForm.get('adminEmail')?.invalid && onboardingForm.get('adminEmail')?.touched">
+          Valid administrator email is required
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Module Selection -->
+    <div class="form-step" *ngIf="currentStep === 2">
+      <h2>Select Modules</h2>
+      <p class="step-description">Choose which modules to enable during onboarding</p>
+      <div class="modules-grid" *ngIf="availableModules?.length; else noMods">
+        <label class="module-card" *ngFor="let m of availableModules">
+          <input type="checkbox" [checked]="isModuleSelected(m.id)" (change)="toggleModule(m.id)" />
+          <div class="module-info">
+            <div class="module-name">{{ m.name || m.id }}</div>
+            <div class="module-desc" *ngIf="m.description">{{ m.description }}</div>
+          </div>
+        </label>
+      </div>
+      <ng-template #noMods>
+        <div class="hint">No modules available</div>
+      </ng-template>
+      <div class="summary">Selected: {{ getSelectedModuleCount() }}</div>
+    </div>
+
+    <!-- Step 3: Per-module configuration -->
+    <div class="form-step" *ngIf="currentStep === 3">
+      <h2>Per-module configuration</h2>
+      <p class="step-description">Provide settings for modules that require configuration</p>
+
+      <!-- Auth module config (only when selected) -->
+      <div *ngIf="isModuleSelected('auth')">
+        <h3>Authentication</h3>
+        <p class="step-description">Choose your authentication provider and configuration</p>
+
+        <!-- Provider selection -->
+        <div class="provider-selection">
+          <div class="provider-card" *ngFor="let provider of availableProviders"
+               [class.selected]="onboardingForm.get('idPType')?.value === provider.type"
+               [class.disabled]="provider.status === 'disabled'"
+               (click)="provider.status !== 'disabled' && onboardingForm.patchValue({idPType: provider.type})">
+            <div class="provider-header">
+              <span class="provider-icon">{{ provider.icon }}</span>
+              <h3>{{ provider.name }}</h3>
+              <span class="status-badge" [class]="'status-' + provider.status">{{ provider.status }}</span>
+            </div>
+            <p class="provider-description">{{ provider.description }}</p>
+            <div class="provider-details">
+              <div class="detail-item"><strong>Setup Complexity:</strong> {{ provider.setupComplexity }}</div>
+              <div class="detail-item"><strong>Time Required:</strong> {{ provider.estimatedSetupTime }}</div>
+              <div class="detail-item features">
+                <strong>Key Features:</strong>
+                <ul>
+                  <li *ngFor="let feature of provider.features">{{ feature }}</li>
+                </ul>
+              </div>
+            </div>
+            <div class="selection-indicator" *ngIf="onboardingForm.get('idPType')?.value === provider.type">
+              <span class="checkmark">✓</span> Selected
+            </div>
+          </div>
+        </div>
+
+        <!-- Conditional IdP configuration -->
+        <div *ngIf="onboardingForm.get('idPType')?.value === 'AzureAD'" class="idp-config-section">
+          <div class="config-info">
+            <div class="info-icon">ℹ️</div>
+            <div class="info-content">
+              <h4>Azure AD Configuration</h4>
+              <p>We'll guide you to register an app in your Azure AD tenant after setup.</p>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="tenantId">Azure AD Tenant ID</label>
+            <input id="tenantId" type="text" class="form-control" formControlName="tenantId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+            <div class="field-help">Azure Portal → Azure Active Directory → Overview</div>
+          </div>
+          <div class="form-group">
+            <label for="clientId">Application (Client) ID</label>
+            <input id="clientId" type="text" class="form-control" formControlName="clientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+            <div class="field-help">From your app registration</div>
+          </div>
+          <div class="form-group">
+            <label for="domain">Azure AD Domain</label>
+            <input id="domain" type="text" class="form-control" formControlName="domain" placeholder="yourdomain.onmicrosoft.com">
+          </div>
+        </div>
+
+        <div *ngIf="onboardingForm.get('idPType')?.value === 'Auth0'" class="idp-config-section">
+          <div class="config-info">
+            <div class="info-icon">ℹ️</div>
+            <div class="info-content">
+              <h4>Auth0 Configuration</h4>
+              <p>We'll guide you to create an application in your Auth0 tenant after setup.</p>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="auth0Domain">Auth0 Domain</label>
+            <input id="auth0Domain" type="text" class="form-control" formControlName="domain" placeholder="your-tenant.auth0.com">
+          </div>
+          <div class="form-group">
+            <label for="auth0ClientId">Client ID</label>
+            <input id="auth0ClientId" type="text" class="form-control" formControlName="clientId" placeholder="your-client-id">
+          </div>
+        </div>
+      </div>
+
+      <!-- No config needed -->
+      <div *ngIf="!isModuleSelected('auth')">
+        <div class="hint">No additional configuration required for selected modules.</div>
+      </div>
+    </div>
+
+    <!-- Step 4: Review -->
+    <div class="form-step" *ngIf="currentStep === 4">
+      <h2>Review Configuration</h2>
+      <p class="step-description">Please review your configuration before submitting</p>
+
+      <div class="review-section">
+        <div class="review-item"><strong>Company Name:</strong> <span>{{ onboardingForm.get('companyName')?.value }}</span></div>
+        <div class="review-item"><strong>Administrator:</strong> <span>{{ onboardingForm.get('adminName')?.value }} ({{ onboardingForm.get('adminEmail')?.value }})</span></div>
+        <div class="review-item"><strong>Selected Modules:</strong> <span>{{ selectedModulesArray.join(', ') || 'None' }}</span></div>
+        <div class="review-item" *ngIf="isModuleSelected('auth')"><strong>Auth Provider:</strong> <span>{{ selectedProvider?.name || '—' }}</span></div>
+        <div class="review-item" *ngIf="onboardingForm.get('idPType')?.value === 'AzureAD'"><strong>Azure AD Tenant:</strong> <span>{{ onboardingForm.get('tenantId')?.value }}</span></div>
+        <div class="review-item" *ngIf="onboardingForm.get('domain')?.value"><strong>Domain:</strong> <span>{{ onboardingForm.get('domain')?.value }}</span></div>
+      </div>
+    </div>
+
+    <!-- Step 5: Provision & enable -->
+    <div class="form-step" *ngIf="currentStep === 5">
+      <h2>Provision &amp; enable</h2>
+      <p class="step-description">We will create the tenant and enable the selected modules.</p>
+      <div class="summary">Modules: {{ selectedModulesArray.join(', ') || 'None' }}</div>
+    </div>
+
+    <!-- Navigation / Actions -->
+    <div class="form-actions" *ngIf="currentStep < totalSteps">
+      <button type="button" class="btn btn-secondary" *ngIf="currentStep > 1" (click)="previousStep()">Previous</button>
+      <div></div>
+      <button type="button" class="btn btn-primary" (click)="nextStep()">Next</button>
+    </div>
+
+    <div class="form-actions" *ngIf="currentStep === totalSteps">
+      <button type="button" class="btn btn-secondary" (click)="previousStep()">Previous</button>
+      <button type="submit" class="btn btn-primary" [disabled]="isSubmitting || onboardingForm.invalid">
+        <span *ngIf="!isSubmitting">Complete Onboarding</span>
+        <span *ngIf="isSubmitting" class="loading-spinner"></span>
+        <span *ngIf="isSubmitting">Processing...</span>
+      </button>
+    </div>
+  </form>
+
+  <!-- Success Result -->
+  <div class="onboarding-success" *ngIf="onboardingResult">
+    <div class="success-icon">✅</div>
+    <h2>Tenant Onboarded Successfully!</h2>
+    <p>Your tenant has been configured for direct identity provider integration.</p>
+    
+    <div class="tenant-id">
+      <span>Tenant ID:</span>
+      <span class="code">{{ onboardingResult.tenantId }}</span>
+      <button class="copy-btn" (click)="copyToClipboard(onboardingResult.tenantId)">📋</button>
+    </div>
+
+    <div class="integration-guide-preview" *ngIf="onboardingResult.integrationGuide">
+      <h4>Integration Guide Ready</h4>
+      <div class="guide-stats">
+        <div class="stat">
+          <div class="stat-value">{{ onboardingResult.integrationGuide.totalSections }}</div>
+          <div class="stat-label">Sections</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">{{ onboardingResult.integrationGuide.estimatedImplementationTime }}</div>
+          <div class="stat-label">Est. Time</div>
+        </div>
+      </div>
+      
+      <button class="btn btn-outline" (click)="viewIntegrationGuide()">
+        View Integration Guide
+      </button>
+    </div>
+
+    <div class="next-steps" *ngIf="onboardingResult.nextSteps">
+      <h3>Next Steps:</h3>
+      <ul>
+        <li *ngFor="let step of onboardingResult.nextSteps">{{ step }}</li>
+      </ul>
+    </div>
+
+    <div class="action-buttons">
+      <button class="btn btn-primary" (click)="viewIntegrationGuide()">
+          📖 View Integration Guide
+      </button>
+      
+        <button class="btn btn-secondary" (click)="downloadIntegrationGuide()" *ngIf="integrationGuide && isModuleSelected('auth')">
+        💾 Download Guide
+      </button>
+      
+      <button class="btn btn-outline" (click)="onboardAnother()">
+        ➕ Onboard Another Tenant
+      </button>
+      
+      <button class="btn btn-outline" (click)="goToDashboard()">
+        🏠 Go to Dashboard
+      </button>
+    </div>
+  </div>
+
+  <!-- Module integration links for selected modules -->
+  <div class="form-step" *ngIf="onboardingResult">
+    <h3>Integration links</h3>
+    <div *ngIf="loadingLinks">Loading integration links…</div>
+    <div class="error-message" *ngIf="linksError">{{ linksError }}</div>
+    <div class="modules-grid">
+      <div class="module-card" *ngFor="let mod of selectedModulesArray">
+        <div class="module-info">
+          <div class="module-name">{{ mod }}</div>
+          <ul>
+            <li *ngFor="let link of moduleIntegrationLinks[mod]">
+              <a [href]="link.url" target="_blank" rel="noopener">{{ link.title }}</a>
+              <div class="module-desc" *ngIf="link.description">{{ link.description }}</div>
+            </li>
+          </ul>
+          <div *ngIf="(moduleIntegrationLinks[mod] || []).length === 0 && !loadingLinks" class="hint">No links available</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Integration Guide Modal -->
+  <div class="modal" *ngIf="showIntegrationGuide" (click)="showIntegrationGuide = false">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Integration Guide</h3>
+        <button class="close-btn" (click)="showIntegrationGuide = false">✕</button>
+      </div>
+      <div class="modal-body">
+        <pre>{{ integrationGuide }}</pre>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="downloadIntegrationGuide()">Download</button>
+        <button class="btn btn-primary" (click)="showIntegrationGuide = false">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Display -->
+  <div class="error-container" *ngIf="error">
+    <div class="error-message">
+      <span class="error-icon">⚠️</span>
+      <span>{{ error }}</span>
+    </div>
+  </div>
+</div>

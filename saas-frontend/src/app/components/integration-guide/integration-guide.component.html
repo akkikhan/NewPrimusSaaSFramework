@@ -1,0 +1,129 @@
+<div class="integration-guide-container">
+  <!-- Header Section -->
+  <div class="guide-header">
+    <div class="container">
+      <div class="header-content">
+        <div class="header-left">
+          <h1>
+            <i class="icon-book"></i>
+            Integration Guide
+          </h1>
+          <p class="lead">
+            Complete guide to integrate SaaS Factory authentication with your application
+          </p>
+          <div class="tenant-info">
+            <span class="badge bg-primary">Tenant ID: {{ tenantId }}</span>
+            <span class="badge bg-success" *ngIf="guide">{{ guide.idPType }} Integration</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <button class="btn btn-light" (click)="downloadGuide()">
+            <i class="icon-download"></i>Download PDF
+          </button>
+          <button class="btn btn-primary" routerLink="/tenants">
+            <i class="icon-arrow-left"></i>Back to Tenants
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="main-content">
+    <div class="container">
+      <div class="content-wrapper">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar" *ngIf="guide">
+          <div class="sidebar-content">
+            <h3>Quick Navigation</h3>
+            <nav class="nav-menu">
+              <a *ngFor="let section of guide.sections; let i = index" 
+                 [href]="'#section-' + i"
+                 class="nav-link"
+                 [class.active]="currentSection === i"
+                 (click)="scrollToSection(i, $event)">
+                <span class="nav-number">{{ i + 1 }}</span>
+                <span class="nav-text">{{ section.title }}</span>
+              </a>
+            </nav>
+          </div>
+        </aside>
+
+        <!-- Content Area -->
+        <main class="content">
+          <!-- Loading State -->
+          <div *ngIf="loading" class="loading-container">
+            <div class="spinner"></div>
+            <p>Loading integration guide...</p>
+          </div>
+
+          <!-- Error State -->
+          <div *ngIf="error && !loading" class="error-container">
+            <div class="alert alert-danger">
+              <h4>Error Loading Guide</h4>
+              <p>{{ error }}</p>
+              <button class="btn btn-primary" (click)="retry()">
+                <i class="icon-refresh"></i> Try Again
+              </button>
+            </div>
+          </div>
+
+          <!-- Guide Content -->
+          <div *ngIf="guide && !loading" class="guide-content">
+            <div class="guide-meta">
+              <h2>{{ guide.title }}</h2>
+              <div class="meta-info">
+                <span><i class="icon-clock"></i> Estimated time: {{ guide.estimatedImplementationTime }}</span>
+                <span><i class="icon-calendar"></i> Generated: {{ guide.generatedAt | date:'medium' }}</span>
+                <span><i class="icon-tag"></i> Version: {{ guide.version }}</span>
+              </div>
+            </div>
+
+            <!-- Guide Sections -->
+            <div *ngFor="let section of guide.sections; let i = index" 
+                 [id]="'section-' + i"
+                 class="guide-section">
+              <h3 class="section-title">
+                <span class="section-number">{{ i + 1 }}</span>
+                {{ section.title }}
+              </h3>
+              
+              <div class="section-content" [innerHTML]="section.content"></div>
+
+              <!-- Code Snippets -->
+              <div *ngIf="section.codeSnippets && section.codeSnippets.length > 0" class="code-snippets">
+                <div *ngFor="let snippet of section.codeSnippets" class="code-block">
+                  <div class="code-header">
+                    <span class="code-language">{{ snippet.language }}</span>
+                    <button class="btn-copy" (click)="copyCode(snippet.code)">
+                      <i class="icon-copy"></i> Copy
+                    </button>
+                  </div>
+                  <pre><code [class]="'language-' + snippet.language">{{ snippet.code }}</code></pre>
+                </div>
+              </div>
+
+              <!-- Images -->
+              <div *ngIf="section.images && section.images.length > 0" class="section-images">
+                <div *ngFor="let image of section.images" class="image-container">
+                  <img [src]="image.url" [alt]="image.alt" class="guide-image">
+                  <p class="image-caption" *ngIf="image.caption">{{ image.caption }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Navigation Footer -->
+            <div class="navigation-footer">
+              <button class="btn btn-secondary" routerLink="/tenants">
+                <i class="icon-arrow-left"></i> Back to Tenants
+              </button>
+              <button class="btn btn-primary" (click)="downloadGuide()">
+                <i class="icon-download"></i> Download as PDF
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+</div>
