@@ -258,8 +258,8 @@ az keyvault secret set --vault-name $keyVaultName --name "ContainerRegistryPassw
 # Store SMTP configuration
 az keyvault secret set --vault-name $keyVaultName --name "SmtpHost" --value "smtp.office365.com"
 az keyvault secret set --vault-name $keyVaultName --name "SmtpPort" --value "587"
-az keyvault secret set --vault-name $keyVaultName --name "SmtpUsername" --value "dev-saas@primussoft.com"
-az keyvault secret set --vault-name $keyVaultName --name "SmtpPassword" --value "First@098"
+az keyvault secret set --vault-name $keyVaultName --name "SmtpUsername" --value "your-email@yourdomain.com"
+az keyvault secret set --vault-name $keyVaultName --name "SmtpPassword" --value "YOUR_EMAIL_PASSWORD"
 
 Write-Host "🎉 Smart Azure Infrastructure Setup Complete!" -ForegroundColor Green
 Write-Host "" -ForegroundColor White

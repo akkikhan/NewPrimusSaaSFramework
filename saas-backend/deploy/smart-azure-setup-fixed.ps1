@@ -172,8 +172,8 @@ Write-Host "🔑 Updating Key Vault with configuration..." -ForegroundColor Blue
 # Store SMTP configuration  
 az keyvault secret set --vault-name $keyVaultName --name "SmtpHost" --value "smtp.office365.com" 2>$null
 az keyvault secret set --vault-name $keyVaultName --name "SmtpPort" --value "587" 2>$null
-az keyvault secret set --vault-name $keyVaultName --name "SmtpUsername" --value "dev-saas@primussoft.com" 2>$null
-az keyvault secret set --vault-name $keyVaultName --name "SmtpPassword" --value "First@098" 2>$null
+az keyvault secret set --vault-name $keyVaultName --name "SmtpUsername" --value "your-email@yourdomain.com" 2>$null
+az keyvault secret set --vault-name $keyVaultName --name "SmtpPassword" --value "YOUR_EMAIL_PASSWORD" 2>$null
 
 Write-Host "✅ SMTP configuration stored in Key Vault" -ForegroundColor Green
 
