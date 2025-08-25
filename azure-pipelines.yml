@@ -1,0 +1,257 @@
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  - group: 'SaaS-Framework-Variables'
+  - name: buildConfiguration
+    value: 'Release'
+
+stages:
+  - stage: Build
+    displayName: 'Build and Test'
+    jobs:
+      - job: BuildBackend
+        displayName: 'Build Backend Services'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Use .NET 8 SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '8.x'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore packages'
+            inputs:
+              command: 'restore'
+              projects: 'saas-backend/**/*.csproj'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Build projects'
+            inputs:
+              command: 'build'
+              projects: 'saas-backend/**/*.csproj'
+              arguments: '--configuration $(buildConfiguration) --no-restore'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Run tests'
+            inputs:
+              command: 'test'
+              projects: 'saas-backend/**/*Tests*.csproj'
+              arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage"'
+
+          - task: PublishTestResults@2
+            displayName: 'Publish test results'
+            inputs:
+              testResultsFormat: 'VSTest'
+              testResultsFiles: '**/*.trx'
+
+      - job: BuildFrontend
+        displayName: 'Build Frontend'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: NodeTool@0
+            displayName: 'Use Node.js 18'
+            inputs:
+              versionSpec: '18.x'
+
+          - script: |
+              cd saas-frontend
+              npm ci
+              npm run build --prod
+            displayName: 'Build Angular app'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish frontend artifacts'
+            inputs:
+              targetPath: 'saas-frontend/dist'
+              artifact: 'frontend'
+
+  - stage: BuildContainers
+    displayName: 'Build Container Images'
+    dependsOn: Build
+    jobs:
+      - job: BuildContainers
+        displayName: 'Build and Push Container Images'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Build and push container images'
+            inputs:
+              azureSubscription: 'Azure-ServiceConnection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Set variables
+                REGISTRY_NAME=$(az acr list --query "[?contains(name, 'acrsf')].name" -o tsv)
+                
+                # Build and push Gateway service
+                cd saas-backend/src/Gateway
+                az acr build --registry $REGISTRY_NAME --image gateway:$(Build.BuildId) .
+                
+                # Build and push Authentication service
+                cd ../Authentication
+                az acr build --registry $REGISTRY_NAME --image authentication:$(Build.BuildId) .
+                
+                # Build and push RBAC service
+                cd ../RBAC
+                az acr build --registry $REGISTRY_NAME --image rbac:$(Build.BuildId) .
+                
+                # Build and push Notifications service
+                cd ../Notifications
+                az acr build --registry $REGISTRY_NAME --image notifications:$(Build.BuildId) .
+
+  - stage: DeployDev
+    displayName: 'Deploy to Development'
+    dependsOn: BuildContainers
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    jobs:
+      - deployment: DeployToDev
+        displayName: 'Deploy to Development Environment'
+        environment: 'development'
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  displayName: 'Deploy Infrastructure'
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az deployment sub create \
+                        --location eastus \
+                        --template-file infra/main.bicep \
+                        --parameters environmentName=dev \
+                        --parameters location=eastus \
+                        --parameters jwtSecret="$(JWT_SECRET_DEV)"
+
+                - task: AzureCLI@2
+                  displayName: 'Update Container Apps'
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Get resource names
+                      REGISTRY_NAME=$(az acr list --query "[?contains(name, 'acrsf')].name" -o tsv)
+                      
+                      # Update container apps with new images
+                      az containerapp update \
+                        --name ca-gateway-dev \
+                        --resource-group rg-dev \
+                        --image $REGISTRY_NAME.azurecr.io/gateway:$(Build.BuildId)
+                      
+                      az containerapp update \
+                        --name ca-auth-dev \
+                        --resource-group rg-dev \
+                        --image $REGISTRY_NAME.azurecr.io/authentication:$(Build.BuildId)
+
+                - task: AzureCLI@2
+                  displayName: 'Run Health Checks'
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Wait for deployment to stabilize
+                      sleep 30
+                      
+                      # Get app URLs
+                      GATEWAY_URL=$(az containerapp show --name ca-gateway-dev --resource-group rg-dev --query "properties.configuration.ingress.fqdn" -o tsv)
+                      
+                      # Test health endpoints
+                      curl -f "https://$GATEWAY_URL/health" || exit 1
+                      echo "Health checks passed!"
+
+  - stage: DeployProd
+    displayName: 'Deploy to Production'
+    dependsOn: BuildContainers
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployToProd
+        displayName: 'Deploy to Production Environment'
+        environment: 'production'
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  displayName: 'Deploy Infrastructure'
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az deployment sub create \
+                        --location eastus \
+                        --template-file infra/main.bicep \
+                        --parameters environmentName=prod \
+                        --parameters location=eastus \
+                        --parameters jwtSecret="$(JWT_SECRET_PROD)"
+
+                - task: AzureCLI@2
+                  displayName: 'Update Container Apps with Blue-Green Deployment'
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Get resource names
+                      REGISTRY_NAME=$(az acr list --query "[?contains(name, 'acrsf')].name" -o tsv)
+                      
+                      # Create revision with new image (blue-green deployment)
+                      az containerapp revision copy \
+                        --name ca-gateway-prod \
+                        --resource-group rg-prod \
+                        --from-revision latest \
+                        --image $REGISTRY_NAME.azurecr.io/gateway:$(Build.BuildId)
+
+                - task: AzureCLI@2
+                  displayName: 'Validate Production Deployment'
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Wait for deployment
+                      sleep 60
+                      
+                      # Get app URLs
+                      GATEWAY_URL=$(az containerapp show --name ca-gateway-prod --resource-group rg-prod --query "properties.configuration.ingress.fqdn" -o tsv)
+                      
+                      # Run comprehensive health checks
+                      curl -f "https://$GATEWAY_URL/health" || exit 1
+                      curl -f "https://$GATEWAY_URL/health/ready" || exit 1
+                      
+                      echo "Production deployment validated successfully!"
+
+                - task: AzureCLI@2
+                  displayName: 'Switch Traffic to New Revision'
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Get the latest revision name
+                      LATEST_REVISION=$(az containerapp revision list \
+                        --name ca-gateway-prod \
+                        --resource-group rg-prod \
+                        --query "[0].name" -o tsv)
+                      
+                      # Switch 100% traffic to new revision
+                      az containerapp ingress traffic set \
+                        --name ca-gateway-prod \
+                        --resource-group rg-prod \
+                        --revision-weight $LATEST_REVISION=100

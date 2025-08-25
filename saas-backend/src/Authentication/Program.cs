@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Serilog;
+using Microsoft.Identity.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,27 +56,8 @@ builder.Services.AddSingleton(serviceProvider =>
 builder.Services.AddScoped<ICosmosDbService, CosmosDbService>();
 builder.Services.AddScoped<IApiKeyService, ApiKeyService>();
 
-// Add JWT service and authentication
-var jwtSecret = builder.Configuration["JWT:Secret"] ?? 
-    throw new InvalidOperationException("JWT Secret is required");
-builder.Services.AddSingleton<IJwtService>(new JwtService(jwtSecret));
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-            ValidateIssuer = true,
-            ValidIssuer = "SaaSFramework",
-            ValidateAudience = true,
-            ValidAudience = "SaaSFramework",
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
-        };
-    });
-
+// Replace existing JWT authentication with Azure AD B2C
+builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration, "AzureAdB2C");
 builder.Services.AddAuthorization();
 
 var app = builder.Build();

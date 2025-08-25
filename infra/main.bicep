@@ -13,26 +13,20 @@ param location string
 @description('Name of the resource group')
 param resourceGroupName string = 'rg-${environmentName}'
 
-// Application settings parameters - these will be provided by the user
-@secure()
-@description('JWT Secret for authentication')
-param jwtSecret string = ''
+@description('Name of the Key Vault containing secrets')
+param keyVaultName string
 
-@description('JWT Issuer')
-param jwtIssuer string = 'https://saas-framework.com'
-
-@description('JWT Audience') 
-param jwtAudience string = 'saas-framework-api'
-
-@secure()
-@description('Cosmos DB connection string - will be generated automatically if empty')
-param cosmosConnectionString string = ''
-
-@description('Cosmos DB database name')
-param cosmosDatabaseName string = 'SaaSFramework'
+@description('Name of the managed identity for container apps')
+param managedIdentityName string
 
 @description('Environment for the applications')
 param aspNetCoreEnvironment string = 'Production'
+
+@description('Alert email address for monitoring notifications')
+param alertEmailAddress string = ''
+
+@description('Monthly budget amount for cost management')
+param monthlyBudgetAmount int = 500
 
 // Resource naming configuration
 var resourceToken = uniqueString(subscription().id, location, environmentName)
@@ -45,6 +39,10 @@ resource resourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   tags: {
     'azd-env-name': environmentName
     project: 'saas-framework'
+    Environment: environmentName
+    CostCenter: 'IT-Development'
+    Owner: 'SaaS-Team'
+    CreatedBy: 'Infrastructure-Automation'
   }
 }
 
@@ -57,12 +55,67 @@ module resources 'resources.bicep' = {
     environmentName: environmentName
     resourceToken: resourceToken
     resourcePrefix: resourcePrefix
-    jwtSecret: jwtSecret
-    jwtIssuer: jwtIssuer
-    jwtAudience: jwtAudience
-    cosmosConnectionString: cosmosConnectionString
-    cosmosDatabaseName: cosmosDatabaseName
+    keyVaultName: keyVaultName
+    managedIdentityName: managedIdentityName
     aspNetCoreEnvironment: aspNetCoreEnvironment
+  }
+}
+
+// Deploy Network Security
+module networkSecurity 'network-security.bicep' = {
+  name: 'network-security'
+  scope: resourceGroup
+  params: {
+    location: location
+    environmentName: environmentName
+    resourceToken: resourceToken
+    containerAppsEnvironmentId: resources.outputs.CONTAINER_APPS_ENVIRONMENT_ID
+    keyVaultName: keyVaultName
+  }
+}
+
+// Deploy Monitoring and Alerting
+module monitoring 'monitoring.bicep' = {
+  name: 'monitoring'
+  scope: resourceGroup
+  params: {
+    location: location
+    environmentName: environmentName
+    resourceToken: resourceToken
+    applicationInsightsName: 'ai-${resourcePrefix}-${resourceToken}'
+    logAnalyticsWorkspaceName: 'law-${resourcePrefix}-${resourceToken}'
+    keyVaultName: keyVaultName
+    cosmosAccountName: resources.outputs.COSMOS_ACCOUNT_NAME
+    containerAppsEnvironmentName: resources.outputs.CONTAINER_APPS_ENVIRONMENT_NAME
+    alertEmailAddress: alertEmailAddress
+  }
+}
+
+// Deploy Cost Management
+module costManagement 'cost-management.bicep' = {
+  name: 'cost-management'
+  scope: resourceGroup
+  params: {
+    location: location
+    environmentName: environmentName
+    resourceToken: resourceToken
+    subscriptionId: subscription().subscriptionId
+    monthlyBudgetAmount: monthlyBudgetAmount
+    budgetAlertEmail: alertEmailAddress
+  }
+}
+
+// Deploy Backup and Recovery
+module backupRecovery 'backup-recovery.bicep' = {
+  name: 'backup-recovery'
+  scope: resourceGroup
+  params: {
+    location: location
+    environmentName: environmentName
+    resourceToken: resourceToken
+    cosmosAccountName: resources.outputs.COSMOS_ACCOUNT_NAME
+    keyVaultName: keyVaultName
+    storageAccountName: resources.outputs.STORAGE_ACCOUNT_NAME
   }
 }
 
@@ -77,3 +130,11 @@ output NOTIFICATIONS_URL string = resources.outputs.NOTIFICATIONS_URL
 output FRONTEND_URL string = resources.outputs.FRONTEND_URL
 output COSMOS_ACCOUNT_NAME string = resources.outputs.COSMOS_ACCOUNT_NAME
 output KEY_VAULT_NAME string = resources.outputs.KEY_VAULT_NAME
+
+// Monitoring and Management Outputs
+output APPLICATION_INSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
+output LOG_ANALYTICS_WORKSPACE_ID string = monitoring.outputs.logAnalyticsWorkspaceId
+output APPLICATION_GATEWAY_PUBLIC_IP string = networkSecurity.outputs.applicationGatewayPublicIP
+output VNET_ID string = networkSecurity.outputs.vnetId
+output RECOVERY_SERVICES_VAULT_ID string = backupRecovery.outputs.recoveryServicesVaultId
+output BUDGET_ID string = costManagement.outputs.budgetId

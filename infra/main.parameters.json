@@ -11,23 +11,20 @@
     "resourceGroupName": {
       "value": "rg-${AZURE_ENV_NAME}"
     },
-    "jwtSecret": {
-      "value": "${JWT_SECRET}"
+    "keyVaultName": {
+      "value": "${KEY_VAULT_NAME}"
     },
-    "jwtIssuer": {
-      "value": "${JWT_ISSUER}"
-    },
-    "jwtAudience": {
-      "value": "${JWT_AUDIENCE}"
-    },
-    "cosmosConnectionString": {
-      "value": "${COSMOS_CONNECTION_STRING}"
-    },
-    "cosmosDatabaseName": {
-      "value": "${COSMOS_DATABASE_NAME}"
+    "managedIdentityName": {
+      "value": "${MANAGED_IDENTITY_NAME}"
     },
     "aspNetCoreEnvironment": {
       "value": "${ASPNETCORE_ENVIRONMENT}"
+    },
+    "alertEmailAddress": {
+      "value": "${ALERT_EMAIL_ADDRESS}"
+    },
+    "monthlyBudgetAmount": {
+      "value": "${MONTHLY_BUDGET_AMOUNT}"
     }
   }
 }

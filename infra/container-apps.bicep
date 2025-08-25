@@ -5,14 +5,10 @@ param resourceToken string
 param containerAppsEnvironmentId string
 param containerRegistryName string
 param userAssignedIdentityId string
-param cosmosAccountName string
-param cosmosDatabaseName string
+param keyVaultName string
+param managedIdentityName string
 
 // Application configuration
-@secure()
-param jwtSecret string
-param jwtIssuer string
-param jwtAudience string
 param aspNetCoreEnvironment string
 
 // Gateway Container App - Main entry point for all API requests
@@ -33,6 +29,11 @@ resource gatewayApp 'Microsoft.App/containerApps@2024-03-01' = {
           allowCredentials: false
         }
       }
+      dapr: {
+        enabled: true
+        appId: 'gateway'
+        appPort: 8080
+      }
       registries: [
         {
           server: '${containerRegistryName}.azurecr.io'
@@ -42,7 +43,18 @@ resource gatewayApp 'Microsoft.App/containerApps@2024-03-01' = {
       secrets: [
         {
           name: 'jwt-secret'
-          value: jwtSecret
+          keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/jwt-secret'
+          identity: userAssignedIdentityId
+        }
+        {
+          name: 'cosmos-connection-string'
+          keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/cosmos-connection-string'
+          identity: userAssignedIdentityId
+        }
+        {
+          name: 'appinsights-connection-string'
+          keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/appinsights-connection-string'
+          identity: userAssignedIdentityId
         }
       ]
     }
@@ -55,14 +67,33 @@ resource gatewayApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json('0.5')
             memory: '1.0Gi'
           }
+          probes: [
+            {
+              type: 'liveness'
+              httpGet: {
+                path: '/health'
+                port: 8080
+              }
+              initialDelaySeconds: 15
+              periodSeconds: 30
+            }
+          ]
           env: [
             {
               name: 'ASPNETCORE_ENVIRONMENT'
               value: aspNetCoreEnvironment
             }
             {
-              name: 'JWT_SECRET'
+              name: 'JWT__SECRET'
               secretRef: 'jwt-secret'
+            }
+            {
+              name: 'ConnectionStrings__CosmosDB'
+              secretRef: 'cosmos-connection-string'
+            }
+            {
+              name: 'ApplicationInsights__ConnectionString'
+              secretRef: 'appinsights-connection-string'
             }
             {
               name: 'AUTH_SERVICE_URL'
@@ -82,6 +113,18 @@ resource gatewayApp 'Microsoft.App/containerApps@2024-03-01' = {
       scale: {
         minReplicas: 1
         maxReplicas: 10
+        rules: [
+          {
+            name: 'cpu-scaling-rule'
+            custom: {
+              type: 'cpu'
+              metadata: {
+                type: 'Utilization'
+                value: '70'
+              }
+            }
+          }
+        ]
       }
     }
   }
@@ -115,6 +158,11 @@ resource authenticationApp 'Microsoft.App/containerApps@2024-03-01' = {
           allowCredentials: false
         }
       }
+      dapr: {
+        enabled: true
+        appId: 'authentication'
+        appPort: 5001
+      }
       registries: [
         {
           server: '${containerRegistryName}.azurecr.io'
@@ -141,6 +189,17 @@ resource authenticationApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json('0.5')
             memory: '1.0Gi'
           }
+          probes: [
+            {
+              type: 'liveness'
+              httpGet: {
+                path: '/health'
+                port: 5001
+              }
+              initialDelaySeconds: 15
+              periodSeconds: 30
+            }
+          ]
           env: [
             {
               name: 'ASPNETCORE_ENVIRONMENT'
@@ -172,6 +231,18 @@ resource authenticationApp 'Microsoft.App/containerApps@2024-03-01' = {
       scale: {
         minReplicas: 1
         maxReplicas: 10
+        rules: [
+          {
+            name: 'cpu-scaling-rule'
+            custom: {
+              type: 'cpu'
+              metadata: {
+                type: 'Utilization'
+                value: '70'
+              }
+            }
+          }
+        ]
       }
     }
   }
@@ -205,6 +276,11 @@ resource rbacApp 'Microsoft.App/containerApps@2024-03-01' = {
           allowCredentials: false
         }
       }
+      dapr: {
+        enabled: true
+        appId: 'rbac'
+        appPort: 5002
+      }
       registries: [
         {
           server: '${containerRegistryName}.azurecr.io'
@@ -231,6 +307,17 @@ resource rbacApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json('0.5')
             memory: '1.0Gi'
           }
+          probes: [
+            {
+              type: 'liveness'
+              httpGet: {
+                path: '/health'
+                port: 5002
+              }
+              initialDelaySeconds: 15
+              periodSeconds: 30
+            }
+          ]
           env: [
             {
               name: 'ASPNETCORE_ENVIRONMENT'
@@ -262,6 +349,18 @@ resource rbacApp 'Microsoft.App/containerApps@2024-03-01' = {
       scale: {
         minReplicas: 1
         maxReplicas: 10
+        rules: [
+          {
+            name: 'cpu-scaling-rule'
+            custom: {
+              type: 'cpu'
+              metadata: {
+                type: 'Utilization'
+                value: '70'
+              }
+            }
+          }
+        ]
       }
     }
   }
@@ -295,6 +394,11 @@ resource notificationsApp 'Microsoft.App/containerApps@2024-03-01' = {
           allowCredentials: false
         }
       }
+      dapr: {
+        enabled: true
+        appId: 'notifications'
+        appPort: 5003
+      }
       registries: [
         {
           server: '${containerRegistryName}.azurecr.io'
@@ -321,6 +425,17 @@ resource notificationsApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json('0.5')
             memory: '1.0Gi'
           }
+          probes: [
+            {
+              type: 'liveness'
+              httpGet: {
+                path: '/health'
+                port: 5003
+              }
+              initialDelaySeconds: 15
+              periodSeconds: 30
+            }
+          ]
           env: [
             {
               name: 'ASPNETCORE_ENVIRONMENT'
@@ -344,6 +459,18 @@ resource notificationsApp 'Microsoft.App/containerApps@2024-03-01' = {
       scale: {
         minReplicas: 1
         maxReplicas: 10
+        rules: [
+          {
+            name: 'cpu-scaling-rule'
+            custom: {
+              type: 'cpu'
+              metadata: {
+                type: 'Utilization'
+                value: '70'
+              }
+            }
+          }
+        ]
       }
     }
   }
