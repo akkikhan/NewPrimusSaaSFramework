@@ -9,7 +9,7 @@ using BCrypt.Net;
 namespace SaaSFramework.Authentication.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/v2/[controller]")]
     public class AuthController : ControllerBase
     {
         private readonly ICosmosDbService _cosmosDbService;

@@ -1,0 +1,1113 @@
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterModule, ActivatedRoute, Router } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { DialogService } from '../../../shared/services/dialog.service';
+import { ApiService } from '../../../services/api.service';
+
+// Interfaces for tenant provisioning
+interface TenantProvisioningResult {
+  tenant: any;
+  adminUser: any;
+  apiKey: {
+    keyId: string;
+    key: string;
+    tenantId: string;
+    name: string;
+    permissions: string[];
+    createdAt: string;
+  };
+  welcomeEmailSent: boolean;
+  welcomeEmailId?: string;
+  loginUrl: string;
+  apiEndpoint: string;
+  setupComplete: boolean;
+}
+
+interface ModuleCatalogItem {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  price: number;
+  isActive: boolean;
+  features: string[];
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+  errors?: string[];
+}
+
+@Component({
+  selector: 'app-tenant-form',
+  standalone: true,
+  imports: [CommonModule, RouterModule, FormsModule],
+  templateUrl: './tenant-form.component.html',
+  styleUrls: ['./tenant-form.component.css']
+    <div class="tenant-form-container">
+      <div class="page-header">
+        <div class="header-content">
+          <h1>{{isEditMode ? 'Edit Tenant' : 'Create New Tenant'}}</h1>
+          <p>{{isEditMode ? 'Update tenant information and settings' : 'Set up a new tenant with complete provisioning'}}</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-secondary" routerLink="/tenants">
+            ← Back to Tenants
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading State -->
+      <div *ngIf="loading" class="loading-container">
+        <div class="loading-spinner"></div>
+        <p>{{isEditMode ? 'Loading tenant data...' : 'Initializing form...'}}</p>
+      </div>
+
+      <!-- Error State -->
+      <div *ngIf="error" class="error-container">
+        <div class="error-icon">⚠️</div>
+        <h3>Error</h3>
+        <p>{{error}}</p>
+        <button class="btn-secondary" (click)="loadTenant()" *ngIf="isEditMode">Try Again</button>
+      </div>
+
+      <!-- Provisioning Success State -->
+      <div *ngIf="provisioningResult" class="provisioning-success">
+        <div class="success-header">
+          <div class="success-icon">🎉</div>
+          <h2>Tenant Successfully Created!</h2>
+          <p>Your tenant has been provisioned with all necessary components.</p>
+        </div>
+
+        <div class="provisioning-details">
+          <!-- Tenant Information -->
+          <div class="detail-card">
+            <h3>🏢 Tenant Information</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <label>Tenant ID:</label>
+                <span class="tenant-id">{{provisioningResult.tenant.id}}</span>
+              </div>
+              <div class="detail-item">
+                <label>Organization:</label>
+                <span>{{provisioningResult.tenant.name}}</span>
+              </div>
+              <div class="detail-item">
+                <label>Domain:</label>
+                <span>{{provisioningResult.tenant.domain}}</span>
+              </div>
+              <div class="detail-item">
+                <label>Plan:</label>
+                <span class="plan-badge">{{provisioningResult.tenant.plan}}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Admin User -->
+          <div class="detail-card">
+            <h3>👤 Admin User Created</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <label>Name:</label>
+                <span>{{provisioningResult.adminUser.firstName}} {{provisioningResult.adminUser.lastName}}</span>
+              </div>
+              <div class="detail-item">
+                <label>Email:</label>
+                <span>{{provisioningResult.adminUser.email}}</span>
+              </div>
+              <div class="detail-item">
+                <label>Role:</label>
+                <span class="role-badge">{{provisioningResult.adminUser.role}}</span>
+              </div>
+              <div class="detail-item">
+                <label>Status:</label>
+                <span class="status-active">{{provisioningResult.adminUser.status}}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- API Key -->
+          <div class="detail-card api-key-card">
+            <h3>🔑 API Key Generated</h3>
+            <div class="api-key-info">
+              <p class="api-key-warning">⚠️ <strong>Important:</strong> Save this API key securely. It won't be shown again!</p>
+              <div class="api-key-display">
+                <code [class.blurred]="apiKeyHidden" (click)="toggleApiKey()">
+                  {{apiKeyHidden ? '••••••••••••••••••••••••••••••••••••••••' : provisioningResult.apiKey.key}}
+                </code>
+                <button class="copy-btn" (click)="copyApiKey()" [disabled]="apiKeyHidden">
+                  {{apiKeyCopied ? '✅ Copied!' : '📋 Copy'}}
+                </button>
+                <button class="toggle-btn" (click)="toggleApiKey()">
+                  {{apiKeyHidden ? '👁️ Show' : '🙈 Hide'}}
+                </button>
+              </div>
+              <div class="api-key-details">
+                <small>Key ID: {{provisioningResult.apiKey.keyId}}</small>
+                <small>Permissions: {{provisioningResult.apiKey.permissions.join(', ')}}</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Access Information -->
+          <div class="detail-card">
+            <h3>🚀 Access Information</h3>
+            <div class="access-links">
+              <div class="access-item">
+                <label>Admin Dashboard:</label>
+                <a [href]="provisioningResult.loginUrl" target="_blank" class="access-link">
+                  {{provisioningResult.loginUrl}}
+                  <span class="external-icon">↗️</span>
+                </a>
+              </div>
+              <div class="access-item">
+                <label>API Endpoint:</label>
+                <code class="endpoint-code">{{provisioningResult.apiEndpoint}}</code>
+              </div>
+            </div>
+          </div>
+
+          <!-- Email Status -->
+          <div class="detail-card" [class.email-success]="provisioningResult.welcomeEmailSent">
+            <h3>📧 Welcome Email</h3>
+            <div class="email-status">
+              <div *ngIf="provisioningResult.welcomeEmailSent" class="email-sent">
+                <span class="status-icon">✅</span>
+                <span>Welcome email sent successfully to {{provisioningResult.adminUser.email}}</span>
+                <small *ngIf="provisioningResult.welcomeEmailId">Message ID: {{provisioningResult.welcomeEmailId}}</small>
+              </div>
+              <div *ngIf="!provisioningResult.welcomeEmailSent" class="email-failed">
+                <span class="status-icon">❌</span>
+                <span>Failed to send welcome email. Admin will need to be notified manually.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="success-actions">
+          <button class="btn-primary" routerLink="/tenants">
+            📋 View All Tenants
+          </button>
+          <button class="btn-secondary" [routerLink]="['/tenants', provisioningResult.tenant.id]">
+            🔍 View Tenant Details
+          </button>
+          <button class="btn-secondary" (click)="createAnother()">
+            ➕ Create Another Tenant
+          </button>
+        </div>
+      </div>
+
+      <!-- Tenant Form -->
+      <form *ngIf="!loading && !error && !provisioningResult" (ngSubmit)="onSubmit()" #tenantForm="ngForm" class="tenant-form">
+        <div class="form-sections">
+          <!-- Basic Information -->
+          <div class="form-section">
+            <h3>🏢 Tenant Information</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="name">Organization Name *</label>
+                <input 
+                  type="text" 
+                  id="name"
+                  [(ngModel)]="tenant.name"
+                  name="name"
+                  required
+                  class="form-input"
+                  [class.error]="submitted && !tenant.name"
+                  placeholder="Acme Corporation">
+                <div *ngIf="submitted && !tenant.name" class="error-message">
+                  Organization name is required
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="domain">Domain *</label>
+                <input 
+                  type="text" 
+                  id="domain"
+                  [(ngModel)]="tenant.domain"
+                  name="domain"
+                  required
+                  class="form-input"
+                  [class.error]="submitted && (!tenant.domain || !isValidDomain(tenant.domain))"
+                  placeholder="acme"
+                  (input)="onDomainChange()">
+                <div *ngIf="submitted && !tenant.domain" class="error-message">
+                  Domain is required
+                </div>
+                <div *ngIf="submitted && tenant.domain && !isValidDomain(tenant.domain)" class="error-message">
+                  Domain must be 3-20 characters, letters and numbers only
+                </div>
+                <div class="field-help">
+                  Full URL: {{tenant.domain}}.saasfactory.com
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Admin User Information -->
+          <div class="form-section">
+            <h3>👤 Primary Administrator</h3>
+            <p class="section-description">This user will be created as the tenant administrator with full access.</p>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="adminFirstName">Admin First Name *</label>
+                <input 
+                  type="text" 
+                  id="adminFirstName"
+                  [(ngModel)]="tenant.adminFirstName"
+                  name="adminFirstName"
+                  required
+                  class="form-input"
+                  [class.error]="submitted && !tenant.adminFirstName"
+                  placeholder="Ada">
+                <div *ngIf="submitted && !tenant.adminFirstName" class="error-message">
+                  Admin first name is required
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="adminLastName">Admin Last Name *</label>
+                <input 
+                  type="text" 
+                  id="adminLastName"
+                  [(ngModel)]="tenant.adminLastName"
+                  name="adminLastName"
+                  required
+                  class="form-input"
+                  [class.error]="submitted && !tenant.adminLastName"
+                  placeholder="Lovelace">
+                <div *ngIf="submitted && !tenant.adminLastName" class="error-message">
+                  Admin last name is required
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="adminEmail">Admin Email *</label>
+                <input 
+                  type="email" 
+                  id="adminEmail"
+                  [(ngModel)]="tenant.adminEmail"
+                  name="adminEmail"
+                  required
+                  class="form-input"
+                  [class.error]="submitted && (!tenant.adminEmail || !isValidEmail(tenant.adminEmail))"
+                  placeholder="admin@acme.com">
+                <div *ngIf="submitted && !tenant.adminEmail" class="error-message">
+                  Admin email is required
+                </div>
+                <div *ngIf="submitted && tenant.adminEmail && !isValidEmail(tenant.adminEmail)" class="error-message">
+                  Please enter a valid email address
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Plan and Status -->
+          <div class="form-section">
+            <h3>📋 Plan & Status</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="plan">Plan *</label>
+                <select 
+                  id="plan"
+                  [(ngModel)]="tenant.plan"
+                  name="plan"
+                  required
+                  class="form-input"
+                  [class.error]="submitted && !tenant.plan">
+                  <option value="">Select a plan</option>
+                  <option value="Basic">Basic</option>
+                  <option value="Professional">Professional</option>
+                  <option value="Enterprise">Enterprise</option>
+                </select>
+                <div *ngIf="submitted && !tenant.plan" class="error-message">
+                  Plan selection is required
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="status">Status</label>
+                <select 
+                  id="status"
+                  [(ngModel)]="tenant.status"
+                  name="status"
+                  class="form-input">
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Suspended">Suspended</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Module Selection -->
+          <div class="form-section">
+            <h3>🧩 Select Modules</h3>
+            <p class="section-description">Choose the modules to activate for this tenant.</p>
+            
+            <!-- Module Loading State -->
+            <div *ngIf="modulesLoading" class="loading-container-small">
+              <div class="loading-spinner"></div>
+              <p>Loading modules...</p>
+            </div>
+
+            <!-- Module Error State -->
+            <div *ngIf="modulesError" class="error-container-small">
+              <div class="error-icon">⚠️</div>
+              <p>{{modulesError}}</p>
+              <button type="button" class="btn-secondary" (click)="loadModules()">Try Again</button>
+            </div>
+
+            <!-- Module List -->
+            <div *ngIf="!modulesLoading && !modulesError" class="module-selection-grid">
+              <div 
+                *ngFor="let module of availableModules" 
+                class="module-card"
+                [class.selected]="isModuleSelected(module.id)"
+                (click)="toggleModule(module.id)">
+                <div class="module-card-header">
+                  <input 
+                    type="checkbox" 
+                    [checked]="isModuleSelected(module.id)"
+                    (change)="toggleModule(module.id)"
+                    class="module-checkbox">
+                  <h4 class="module-name">{{module.name}}</h4>
+                </div>
+                <p class="module-description">{{module.description}}</p>
+                <div class="module-footer">
+                  <span class="module-category">{{module.category}}</span>
+                  <span class="module-price">${{module.price}}/mo</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Module Summary -->
+            <div *ngIf="!modulesLoading && !modulesError" class="module-summary">
+              <div class="summary-item">
+                <span>Selected Modules:</span>
+                <strong>{{selectedModules.size}}</strong>
+              </div>
+              <div class="summary-item">
+                <span>Total Monthly Cost:</span>
+                <strong>{{calculateTotalPrice() | currency:'USD':'symbol':'1.2-2'}}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" routerLink="/tenants">
+            Cancel
+          </button>
+          <button type="submit" class="btn-primary" [disabled]="saving || !tenantForm.valid">
+            {{saving ? '🚀 Creating Tenant...' : (isEditMode ? '💾 Update Tenant' : '🚀 Create Tenant')}}
+          </button>
+        </div>
+
+        <!-- Provisioning Progress -->
+        <div *ngIf="saving && !isEditMode" class="provisioning-progress">
+          <h4>🚀 Setting up your tenant...</h4>
+          <div class="progress-steps">
+            <div class="progress-step" [class.active]="currentStep >= 1" [class.completed]="currentStep > 1">
+              <span class="step-number">1</span>
+              <span class="step-label">Creating tenant</span>
+            </div>
+            <div class="progress-step" [class.active]="currentStep >= 2" [class.completed]="currentStep > 2">
+              <span class="step-number">2</span>
+              <span class="step-label">Setting up admin user</span>
+            </div>
+            <div class="progress-step" [class.active]="currentStep >= 3" [class.completed]="currentStep > 3">
+              <span class="step-number">3</span>
+              <span class="step-label">Generating API key</span>
+            </div>
+            <div class="progress-step" [class.active]="currentStep >= 4" [class.completed]="currentStep > 4">
+              <span class="step-number">4</span>
+              <span class="step-label">Sending welcome email</span>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  `,
+  styles: [`
+    .tenant-form-container {
+      padding: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .header-content h1 {
+      color: #2c3e50;
+      margin: 0 0 0.5rem 0;
+      font-size: 2rem;
+    }
+
+    .header-content p {
+      color: #7f8c8d;
+      margin: 0;
+    }
+
+    /* Loading and Error States */
+    .loading-container, .error-container {
+      text-align: center;
+      padding: 3rem;
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #2196f3;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .error-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    /* Provisioning Success Styles */
+    .provisioning-success {
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e0e0e0;
+      overflow: hidden;
+    }
+
+    .success-header {
+      background: linear-gradient(135deg, #4caf50, #45a049);
+      color: white;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .success-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+
+    .success-header h2 {
+      margin: 0 0 0.5rem 0;
+      font-size: 2rem;
+    }
+
+    .success-header p {
+      margin: 0;
+      opacity: 0.9;
+    }
+
+    .provisioning-details {
+      padding: 2rem;
+      display: grid;
+      gap: 1.5rem;
+    }
+
+    .detail-card {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1.5rem;
+      border: 1px solid #e9ecef;
+    }
+
+    .detail-card h3 {
+      color: #2c3e50;
+      margin: 0 0 1rem 0;
+      font-size: 1.2rem;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .detail-item label {
+      font-size: 0.85rem;
+      color: #6c757d;
+      font-weight: 500;
+    }
+
+    .detail-item span {
+      font-weight: 600;
+      color: #2c3e50;
+    }
+
+    .tenant-id {
+      font-family: 'Courier New', monospace;
+      background: #e9ecef;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    .plan-badge, .role-badge {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .plan-badge {
+      background-color: #e0f2f1;
+      color: #00796b;
+    }
+
+    .role-badge {
+      background-color: #ede7f6;
+      color: #5e35b1;
+    }
+
+    /* Module Selection Styles */
+    .loading-container-small, .error-container-small {
+      text-align: center;
+      padding: 2rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+
+    .module-selection-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .module-card {
+      background: white;
+      border: 2px solid #e9ecef;
+      border-radius: 8px;
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .module-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+      border-color: #2196f3;
+    }
+
+    .module-card.selected {
+      border-color: #2196f3;
+      box-shadow: 0 8px 20px rgba(33, 150, 243, 0.2);
+    }
+
+    .module-card-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .module-checkbox {
+      width: 20px;
+      height: 20px;
+      accent-color: #2196f3;
+    }
+
+    .module-name {
+      margin: 0;
+      font-size: 1.1rem;
+      color: #2c3e50;
+    }
+
+    .module-description {
+      font-size: 0.9rem;
+      color: #7f8c8d;
+      margin-bottom: 1.5rem;
+      min-height: 40px;
+    }
+
+    .module-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+    }
+
+    .module-category {
+      background: #e9ecef;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      color: #6c757d;
+    }
+
+    .module-price {
+      font-weight: 600;
+      color: #2196f3;
+    }
+
+    .module-summary {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .summary-item {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .summary-item span {
+      color: #6c757d;
+    }
+
+    .summary-item strong {
+      font-size: 1.2rem;
+      color: #2c3e50;
+    }
+
+    /* Form Styles */
+    .tenant-form {
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e0e0e0;
+      overflow: hidden;
+    }
+
+    .form-sections {
+      padding: 2rem;
+    }
+
+    .form-section {
+      margin-bottom: 2.5rem;
+    }
+
+    .form-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .form-section h3 {
+      color: #2c3e50;
+      margin: 0 0 0.5rem 0;
+    }
+
+    .form-section .section-description {
+      color: #7f8c8d;
+      margin: 0 0 1.5rem 0;
+      font-size: 0.9rem;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group label {
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: #34495e;
+    }
+
+    .form-input {
+      padding: 0.75rem;
+      border: 1px solid #bdc3c7;
+      border-radius: 4px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #2196f3;
+      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+    }
+
+    .form-input.error {
+      border-color: #e74c3c;
+    }
+
+    .error-message {
+      color: #e74c3c;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+
+    .help-text {
+      color: #4caf50;
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
+    }
+
+    /* Form Actions */
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      padding: 1.5rem 2rem;
+      background: #f8f9fa;
+      border-top: 1px solid #e0e0e0;
+      border-bottom-left-radius: 8px;
+      border-bottom-right-radius: 8px;
+    }
+
+    /* Buttons */
+    .btn-primary, .btn-secondary {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: none;
+      font-size: 1rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: #2196f3;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #1976d2;
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #5a6268;
+      transform: translateY(-1px);
+    }
+
+    /* Provisioning Progress */
+    .provisioning-progress {
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .progress-steps {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 1rem;
+    }
+
+    .progress-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      position: relative;
+    }
+
+    .step-number {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background-color: #e0e0e0;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      z-index: 2;
+      transition: background-color 0.3s;
+    }
+
+    .progress-step.active .step-number {
+      background-color: #2196f3;
+    }
+
+    .progress-step.completed .step-number {
+      background-color: #4caf50;
+    }
+
+    .step-label {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: #7f8c8d;
+    }
+
+    .progress-step.active .step-label {
+      color: #2196f3;
+      font-weight: 500;
+    }
+
+    .progress-step.completed .step-label {
+      color: #4caf50;
+      font-weight: 500;
+    }
+
+    .progress-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      width: 100%;
+      height: 2px;
+      background-color: #e0e0e0;
+      z-index: 1;
+    }
+
+    .progress-step.completed:not(:last-child)::after {
+      background-color: #4caf50;
+    }
+  `]
+})
+export class TenantFormComponent implements OnInit {
+  public tenant: any = {
+    name: '',
+    domain: '',
+    adminFirstName: '',
+    adminLastName: '',
+    adminEmail: '',
+    plan: 'Professional',
+    status: 'Active'
+  };
+  public isEditMode = false;
+  public loading = true;
+  public error: string | null = null;
+  public saving = false;
+  public submitted = false;
+  public provisioningResult: TenantProvisioningResult | null = null;
+  public currentStep = 0;
+  public apiKeyHidden = true;
+  public apiKeyCopied = false;
+
+  public availableModules: ModuleCatalogItem[] = [];
+  public selectedModules = new Set<string>();
+  public modulesLoading = true;
+  public modulesError: string | null = null;
+
+  private tenantId: string | null = null;
+
+  constructor(
+    private route: ActivatedRoute,
+    private router: Router,
+    private apiService: ApiService,
+    private dialogService: DialogService
+  ) {}
+
+  ngOnInit(): void {
+    this.tenantId = this.route.snapshot.paramMap.get('id');
+    if (this.tenantId) {
+      this.isEditMode = true;
+      this.loadTenant(this.tenantId);
+    } else {
+      this.loading = false;
+    }
+    this.loadModules();
+  }
+
+  loadModules(): void {
+    this.modulesLoading = true;
+    this.modulesError = null;
+    this.apiService.get<ApiResponse<ModuleCatalogItem[]>>('tenants/modules/catalog').subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.availableModules = response.data;
+        } else {
+          this.modulesError = 'Failed to load module catalog.';
+        }
+        this.modulesLoading = false;
+      },
+      error: (err) => {
+        console.error('Error loading modules:', err);
+        this.modulesError = 'An error occurred while fetching modules. Please try again.';
+        this.modulesLoading = false;
+      }
+    });
+  }
+
+  loadTenant(id: string): void {
+    this.loading = true;
+    this.error = null;
+    this.apiService.get<ApiResponse<any>>(`tenants/${id}`).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.tenant = response.data;
+          this.selectedModules = new Set(response.data.modules || []);
+        } else {
+          this.error = 'Failed to load tenant data.';
+        }
+        this.loading = false;
+      },
+      error: (err) => {
+        console.error('Error loading tenant:', err);
+        this.error = 'An error occurred while fetching tenant data.';
+        this.loading = false;
+      }
+    });
+  }
+
+  isValidDomain(domain: string): boolean {
+    return /^[a-z0-9]{3,20}$/.test(domain);
+  }
+
+  isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  onDomainChange(): void {
+    this.tenant.domain = this.tenant.domain.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  copyApiKey(): void {
+    if (this.provisioningResult?.apiKey.key) {
+      navigator.clipboard.writeText(this.provisioningResult.apiKey.key);
+      this.apiKeyCopied = true;
+      setTimeout(() => { this.apiKeyCopied = false; }, 2000);
+    }
+  }
+
+  toggleApiKey(): void {
+    this.apiKeyHidden = !this.apiKeyHidden;
+  }
+
+  createAnother(): void {
+    this.provisioningResult = null;
+    this.tenant = {
+      name: '',
+      domain: '',
+      adminFirstName: '',
+      adminLastName: '',
+      adminEmail: '',
+      plan: 'Professional',
+      status: 'Active'
+    };
+    this.selectedModules.clear();
+    this.submitted = false;
+    this.router.navigate(['/tenants/new']);
+  }
+
+  toggleModule(moduleId: string): void {
+    if (this.selectedModules.has(moduleId)) {
+      this.selectedModules.delete(moduleId);
+    } else {
+      this.selectedModules.add(moduleId);
+    }
+  }
+
+  isModuleSelected(moduleId: string): boolean {
+    return this.selectedModules.has(moduleId);
+  }
+
+  calculateTotalPrice(): number {
+    return this.availableModules
+      .filter(m => this.selectedModules.has(m.id))
+      .reduce((total, m) => total + m.price, 0);
+  }
+
+  onSubmit(): void {
+    this.submitted = true;
+    if (!this.tenant.name || !this.tenant.domain || !this.tenant.adminFirstName || !this.tenant.adminLastName || !this.tenant.adminEmail || !this.tenant.plan) {
+      return;
+    }
+    if (!this.isValidDomain(this.tenant.domain) || !this.isValidEmail(this.tenant.adminEmail)) {
+      return;
+    }
+
+    if (this.isEditMode) {
+      this.updateTenant();
+    } else {
+      this.createTenant();
+    }
+  }
+
+  private createTenant(): void {
+    this.saving = true;
+    this.currentStep = 1;
+
+    const payload = {
+      ...this.tenant,
+      modules: Array.from(this.selectedModules)
+    };
+
+    // Simulate multi-step provisioning process
+    setTimeout(() => { this.currentStep = 2; }, 1000);
+    setTimeout(() => { this.currentStep = 3; }, 2000);
+    setTimeout(() => { this.currentStep = 4; }, 3000);
+
+    this.apiService.post<ApiResponse<TenantProvisioningResult>>('tenants/provision', payload).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.provisioningResult = response.data;
+        } else {
+          this.error = response.message || 'An unknown error occurred during provisioning.';
+        }
+        this.saving = false;
+      },
+      error: (err) => {
+        console.error('Error creating tenant:', err);
+        this.error = 'An error occurred during provisioning. Please check the details and try again.';
+        this.saving = false;
+      }
+    });
+  }
+
+  private updateTenant(): void {
+    this.saving = true;
+    if (!this.tenantId) return;
+
+    const payload = {
+      ...this.tenant,
+      modules: Array.from(this.selectedModules)
+    };
+
+    this.apiService.put<ApiResponse<any>>(`tenants/${this.tenantId}`, payload).subscribe({
+      next: () => {
+        this.saving = false;
+        this.dialogService.success('Success', 'Tenant updated successfully!');
+        this.router.navigate(['/tenants', this.tenantId]);
+      },
+      error: (err) => {
+        this.saving = false;
+        console.error('Error updating tenant:', err);
+        this.dialogService.error('Error', 'An error occurred while updating the tenant.');
+      }
+    });
+  }
+}

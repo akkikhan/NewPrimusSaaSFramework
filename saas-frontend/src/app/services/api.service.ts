@@ -1188,9 +1188,16 @@ export class ApiService {
   }
 
   getAvailableModules(): Observable<any[]> {
-    return this.makeRequest<any[]>(
+    console.log('ApiService: Making request to get available modules');
+    return this.makeRequest<{success: boolean, data: any[]}>(
       `${environment.api.endpoints.tenants}/modules/catalog`
     ).pipe(
+      map(response => {
+        console.log('ApiService: Raw API response:', response);
+        const modules = response.data || [];
+        console.log('ApiService: Extracted modules:', modules);
+        return modules;
+      }),
       catchError(
         this.handleErrorInternal<any[]>('getAvailableModules', [
           {

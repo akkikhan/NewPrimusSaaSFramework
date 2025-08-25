@@ -14,16 +14,13 @@ export interface IdPConfiguration {
 }
 
 export interface OnboardingRequest {
-  companyName: string;
-  adminEmail: string;
-  adminName: string;
-  idPType: 'AzureAD' | 'Auth0';
-  idPSettings: {
-    tenantId?: string;
-    clientId?: string;
-    domain?: string;
-  };
-  preferredLanguages?: string[];
+  Name: string;
+  AdminEmail: string;
+  AdminFirstName?: string;
+  AdminLastName?: string;
+  Domain?: string;
+  CompanySize?: string;
+  Industry?: string;
 }
 
 export interface OnboardingResponse {
@@ -61,10 +58,10 @@ export class IdPConfigurationService {
 
   // Onboard a new tenant with IdP configuration
   onboardTenant(request: OnboardingRequest): Observable<OnboardingResponse> {
-    // Route aligned with Configuration API V2 controller
+    // Use the correct Gateway endpoint for tenant onboarding
     return this.http
       .post<OnboardingResponse>(
-        `${this.baseV2}/tenant-onboarding/onboard`,
+        `${this.baseV2}/tenants/onboard`,
         request
       )
       .pipe(

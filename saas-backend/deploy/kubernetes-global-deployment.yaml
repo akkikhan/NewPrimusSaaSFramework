@@ -1,0 +1,198 @@
+# Kubernetes deployment for global access
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: saas-framework
+---
+# ConfigMap for shared configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: saas-config
+  namespace: saas-framework
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  JWT__Secret: "your-super-secret-key-that-is-at-least-32-characters-long"
+  CosmosDB__ConnectionString: "your-cosmos-connection-string"
+---
+# Authentication Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saas-auth
+  namespace: saas-framework
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: saas-auth
+  template:
+    metadata:
+      labels:
+        app: saas-auth
+    spec:
+      containers:
+      - name: saas-auth
+        image: your-registry/saas-authentication:latest
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: saas-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+# Authentication Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: saas-auth-service
+  namespace: saas-framework
+spec:
+  selector:
+    app: saas-auth
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+# RBAC Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saas-rbac
+  namespace: saas-framework
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: saas-rbac
+  template:
+    metadata:
+      labels:
+        app: saas-rbac
+    spec:
+      containers:
+      - name: saas-rbac
+        image: your-registry/saas-rbac:latest
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: saas-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+# RBAC Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: saas-rbac-service
+  namespace: saas-framework
+spec:
+  selector:
+    app: saas-rbac
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+# Gateway Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saas-gateway
+  namespace: saas-framework
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: saas-gateway
+  template:
+    metadata:
+      labels:
+        app: saas-gateway
+    spec:
+      containers:
+      - name: saas-gateway
+        image: your-registry/saas-gateway:latest
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: saas-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+---
+# Gateway Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: saas-gateway-service
+  namespace: saas-framework
+spec:
+  selector:
+    app: saas-gateway
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+# Ingress for global access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: saas-framework-ingress
+  namespace: saas-framework
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,X-Tenant-Id"
+    nginx.ingress.kubernetes.io/rate-limit: "1000"
+spec:
+  tls:
+  - hosts:
+    - api.yourcompany.com
+    secretName: saas-framework-tls
+  rules:
+  - host: api.yourcompany.com
+    http:
+      paths:
+      - path: /api/v2/auth
+        pathType: Prefix
+        backend:
+          service:
+            name: saas-auth-service
+            port:
+              number: 80
+      - path: /api/v2/rbac
+        pathType: Prefix
+        backend:
+          service:
+            name: saas-rbac-service
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: saas-gateway-service
+            port:
+              number: 80

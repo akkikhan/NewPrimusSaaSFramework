@@ -109,10 +109,13 @@ export class TenantIdpOnboardingComponent implements OnInit {
   }
 
   loadModules() {
+    console.log('Loading modules...');
     this.api.getAvailableModules().subscribe({
       next: (mods: any[]) => {
+        console.log('Received modules data:', mods);
         // Expecting array of { id, name, description }
         this.availableModules = Array.isArray(mods) ? mods : [];
+        console.log('Available modules set to:', this.availableModules);
       },
       error: (err: any) => {
         console.error('Failed to load module catalog:', err);
@@ -185,11 +188,6 @@ export class TenantIdpOnboardingComponent implements OnInit {
   }
 
   onSubmit() {
-    // Hard guard: onboarding is platform-admin only
-    if (!(this as any).authService?.isPlatformAdmin?.()) {
-      this.dialogService.error('Unauthorized', 'Only platform admins can onboard tenants.').subscribe();
-      return;
-    }
     if (this.onboardingForm.invalid) {
       Object.keys(this.onboardingForm.controls).forEach(key => {
         this.onboardingForm.get(key)?.markAsTouched();
@@ -202,17 +200,11 @@ export class TenantIdpOnboardingComponent implements OnInit {
 
     const formValue = this.onboardingForm.value;
     const request: OnboardingRequest = {
-      companyName: formValue.companyName,
-      adminEmail: formValue.adminEmail,
-      adminName: formValue.adminName,
-      // Include IdP info only if auth module is selected
-      idPType: (formValue.selectedModules || []).includes('auth') ? formValue.idPType : undefined as any,
-      idPSettings: (formValue.selectedModules || []).includes('auth') ? {
-        tenantId: formValue.tenantId,
-        clientId: formValue.clientId,
-        domain: formValue.domain
-      } : {},
-      preferredLanguages: formValue.preferredLanguages
+      Name: formValue.companyName,
+      AdminEmail: formValue.adminEmail,
+      AdminFirstName: formValue.adminName?.split(' ')[0] || formValue.adminName,
+      AdminLastName: formValue.adminName?.split(' ').slice(1).join(' ') || '',
+      Domain: formValue.domain || ''
     };
 
     this.idpService.onboardTenant(request).subscribe({

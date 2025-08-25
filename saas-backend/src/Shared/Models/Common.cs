@@ -58,3 +58,14 @@ public class ValidationErrorResponse
     public string Message { get; set; } = "Validation failed";
     public Dictionary<string, List<string>> Errors { get; set; } = new();
 }
+
+public class ModuleCatalogItem
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public bool IsActive { get; set; } = true;
+    public string[] Features { get; set; } = Array.Empty<string>();
+}

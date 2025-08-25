@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/refs/heads/main/schemas/v1.0/azure.yaml.json
+
+name: saas-framework
+
+infra:
+  provider: bicep
+
+services:
+  gateway:
+    project: saas-backend\src\Gateway
+    host: containerapp
+    language: dotnet
+    docker:
+      path: Dockerfile
+      context: ./
+
+  authentication:
+    project: saas-backend\src\Authentication
+    host: containerapp
+    language: dotnet
+    docker:
+      path: Dockerfile
+      context: ./
+
+  rbac:
+    project: saas-backend\src\RBAC
+    host: containerapp
+    language: dotnet
+    docker:
+      path: Dockerfile
+      context: ./
+
+  notifications:
+    project: saas-backend\src\Notifications
+    host: containerapp
+    language: dotnet
+    docker:
+      path: Dockerfile
+      context: ./
+
+  frontend:
+    project: saas-frontend
+    host: staticwebapp
+    language: ts

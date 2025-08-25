@@ -1,0 +1,439 @@
+<div class="tenant-form-container">
+  <div class="page-header">
+    <div class="header-content">
+      <h1>{{isEditMode ? 'Edit Tenant' : 'Create New Tenant'}}</h1>
+      <p>{{isEditMode ? 'Update tenant information and settings' : 'Set up a new tenant with complete provisioning'}}</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-secondary" routerLink="/tenants">
+        ← Back to Tenants
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading-container">
+    <div class="loading-spinner"></div>
+    <p>{{isEditMode ? 'Loading tenant data...' : 'Initializing form...'}}</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error" class="error-container">
+    <div class="error-icon">⚠️</div>
+    <h3>Error</h3>
+    <p>{{error}}</p>
+    <button class="btn-secondary" (click)="loadTenant(tenantId!)" *ngIf="isEditMode">Try Again</button>
+  </div>
+
+  <!-- Provisioning Success State -->
+  <div *ngIf="provisioningResult" class="provisioning-success">
+    <div class="success-header">
+      <div class="success-icon">🎉</div>
+      <h2>Tenant Successfully Created!</h2>
+      <p>Your tenant has been provisioned with all necessary components.</p>
+    </div>
+
+    <div class="provisioning-details">
+      <!-- Tenant Information -->
+      <div class="detail-card">
+        <h3>🏢 Tenant Information</h3>
+        <div class="detail-grid">
+          <div class="detail-item">
+            <label>Tenant ID:</label>
+            <span class="tenant-id">{{provisioningResult?.tenant?.id}}</span>
+          </div>
+          <div class="detail-item">
+            <label>Organization:</label>
+            <span>{{provisioningResult?.tenant?.name}}</span>
+          </div>
+          <div class="detail-item">
+            <label>Domain:</label>
+            <span>{{provisioningResult?.tenant?.domain}}</span>
+          </div>
+          <div class="detail-item">
+            <label>Plan:</label>
+            <span class="plan-badge">{{provisioningResult?.tenant?.plan}}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin User -->
+      <div class="detail-card">
+        <h3>👤 Admin User Created</h3>
+        <div class="detail-grid">
+          <div class="detail-item">
+            <label>Name:</label>
+            <span>{{provisioningResult?.adminUser?.firstName}} {{provisioningResult?.adminUser?.lastName}}</span>
+          </div>
+          <div class="detail-item">
+            <label>Email:</label>
+            <span>{{provisioningResult?.adminUser?.email}}</span>
+          </div>
+          <div class="detail-item">
+            <label>Role:</label>
+            <span class="role-badge">{{provisioningResult?.adminUser?.role}}</span>
+          </div>
+          <div class="detail-item">
+            <label>Status:</label>
+            <span class="status-active">{{provisioningResult?.adminUser?.status}}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- API Key -->
+      <div class="detail-card api-key-card">
+        <h3>🔑 API Key Generated</h3>
+        <div class="api-key-info">
+          <p class="api-key-warning">⚠️ <strong>Important:</strong> Save this API key securely. It won't be shown again!</p>
+          <div class="api-key-display">
+            <code [class.blurred]="apiKeyHidden" (click)="toggleApiKey()">
+              {{apiKeyHidden ? '••••••••••••••••••••••••••••••••••••••••' : provisioningResult?.apiKey?.key}}
+            </code>
+            <button class="copy-btn" (click)="copyApiKey()" [disabled]="apiKeyHidden">
+              {{apiKeyCopied ? '✅ Copied!' : '📋 Copy'}}
+            </button>
+            <button class="toggle-btn" (click)="toggleApiKey()">
+              {{apiKeyHidden ? '👁️ Show' : '🙈 Hide'}}
+            </button>
+          </div>
+          <div class="api-key-details">
+            <small>Key ID: {{provisioningResult?.apiKey?.keyId}}</small>
+            <small>Permissions: {{provisioningResult?.apiKey?.permissions?.join(', ')}}</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Access Information -->
+      <div class="detail-card">
+        <h3>🚀 Access Information</h3>
+        <div class="access-links">
+          <div class="access-item">
+            <label>Admin Dashboard:</label>
+            <a [href]="provisioningResult.loginUrl" target="_blank" class="access-link">
+              {{provisioningResult.loginUrl}}
+              <span class="external-icon">↗️</span>
+            </a>
+          </div>
+          <div class="access-item">
+            <label>API Endpoint:</label>
+            <code class="endpoint-code">{{provisioningResult.apiEndpoint}}</code>
+          </div>
+        </div>
+      </div>
+
+      <!-- Email Status -->
+      <div class="detail-card" [class.email-success]="provisioningResult.welcomeEmailSent">
+        <h3>📧 Welcome Email</h3>
+        <div class="email-status">
+          <div *ngIf="provisioningResult?.welcomeEmailSent" class="email-sent">
+            <span class="status-icon">✅</span>
+            <span>Welcome email sent successfully to {{provisioningResult?.adminUser?.email}}</span>
+            <small *ngIf="provisioningResult?.welcomeEmailId">Message ID: {{provisioningResult?.welcomeEmailId}}</small>
+          </div>
+          <div *ngIf="!provisioningResult?.welcomeEmailSent" class="email-failed">
+            <span class="status-icon">❌</span>
+            <span>Failed to send welcome email. Admin will need to be notified manually.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="success-actions">
+      <button class="btn-primary" routerLink="/tenants">
+        📋 View All Tenants
+      </button>
+      <button class="btn-secondary" [routerLink]="['/tenants', provisioningResult?.tenant?.id]">
+        🔍 View Tenant Details
+      </button>
+      <button class="btn-secondary" (click)="createAnother()">
+        ➕ Create Another Tenant
+      </button>
+    </div>
+  </div>
+
+  <!-- Tenant Form -->
+  <form *ngIf="!loading && !error && !provisioningResult" (ngSubmit)="onSubmit()" #tenantForm="ngForm" class="tenant-form">
+    <div class="form-sections">
+      <!-- Basic Information -->
+      <div class="form-section">
+        <h3>🏢 Tenant Information</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="name">Organization Name *</label>
+            <input 
+              type="text" 
+              id="name"
+              [(ngModel)]="tenant.name"
+              name="name"
+              required
+              class="form-input"
+              [class.error]="submitted && !tenant.name"
+              placeholder="Acme Corporation">
+            <div *ngIf="submitted && !tenant.name" class="error-message">
+              Organization name is required
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="domain">Domain *</label>
+            <input 
+              type="text" 
+              id="domain"
+              [(ngModel)]="tenant.domain"
+              name="domain"
+              required
+              class="form-input"
+              [class.error]="submitted && (!tenant.domain || !isValidDomain(tenant.domain))"
+              placeholder="acme"
+              (input)="onDomainChange()">
+            <div *ngIf="submitted && !tenant.domain" class="error-message">
+              Domain is required
+            </div>
+            <div *ngIf="submitted && tenant.domain && !isValidDomain(tenant.domain)" class="error-message">
+              Domain must be 3-20 characters, letters and numbers only
+            </div>
+            <div class="field-help">
+              Full URL: {{tenant.domain}}.saasfactory.com
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin User Information -->
+      <div class="form-section">
+        <h3>👤 Primary Administrator</h3>
+        <p class="section-description">This user will be created as the tenant administrator with full access.</p>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="adminFirstName">Admin First Name *</label>
+            <input 
+              type="text" 
+              id="adminFirstName"
+              [(ngModel)]="tenant.adminFirstName"
+              name="adminFirstName"
+              required
+              class="form-input"
+              [class.error]="submitted && !tenant.adminFirstName"
+              placeholder="Ada">
+            <div *ngIf="submitted && !tenant.adminFirstName" class="error-message">
+              Admin first name is required
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="adminLastName">Admin Last Name *</label>
+            <input 
+              type="text" 
+              id="adminLastName"
+              [(ngModel)]="tenant.adminLastName"
+              name="adminLastName"
+              required
+              class="form-input"
+              [class.error]="submitted && !tenant.adminLastName"
+              placeholder="Lovelace">
+            <div *ngIf="submitted && !tenant.adminLastName" class="error-message">
+              Admin last name is required
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="adminEmail">Admin Email *</label>
+            <input 
+              type="email" 
+              id="adminEmail"
+              [(ngModel)]="tenant.adminEmail"
+              name="adminEmail"
+              required
+              class="form-input"
+              [class.error]="submitted && (!tenant.adminEmail || !isValidEmail(tenant.adminEmail))"
+              placeholder="admin@acme.com">
+            <div *ngIf="submitted && !tenant.adminEmail" class="error-message">
+              Admin email is required
+            </div>
+            <div *ngIf="submitted && tenant.adminEmail && !isValidEmail(tenant.adminEmail)" class="error-message">
+              Please enter a valid email address
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Plan and Status -->
+      <div class="form-section">
+        <h3>📋 Plan & Status</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="plan">Plan *</label>
+            <select 
+              id="plan"
+              [(ngModel)]="tenant.plan"
+              name="plan"
+              required
+              class="form-input"
+              [class.error]="submitted && !tenant.plan">
+              <option value="">Select a plan</option>
+              <option value="Basic">Basic</option>
+              <option value="Professional">Professional</option>
+              <option value="Enterprise">Enterprise</option>
+            </select>
+            <div *ngIf="submitted && !tenant.plan" class="error-message">
+              Plan selection is required
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="status">Status</label>
+            <select 
+              id="status"
+              [(ngModel)]="tenant.status"
+              name="status"
+              class="form-input">
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+              <option value="Suspended">Suspended</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Module Selection -->
+      <div class="form-section">
+        <h3>🧩 Select Modules</h3>
+        <p class="section-description">Choose the modules to activate for this tenant. Each module provides specific functionality and features.</p>
+        
+        <!-- Module Loading State -->
+        <div *ngIf="modulesLoading" class="loading-container-small">
+          <div class="loading-spinner-small"></div>
+          <p>Loading available modules...</p>
+        </div>
+
+        <!-- Module Error State -->
+        <div *ngIf="modulesError" class="error-container-small">
+          <div class="error-icon">⚠️</div>
+          <p>{{modulesError}}</p>
+          <button type="button" class="btn-secondary small" (click)="loadModules()">Try Again</button>
+        </div>
+
+        <!-- Module Selection Grid -->
+        <div *ngIf="!modulesLoading && !modulesError" class="module-selection-container">
+          <!-- Category Filter -->
+          <div class="module-filters">
+            <button 
+              type="button"
+              *ngFor="let category of getUniqueCategories()" 
+              class="filter-btn"
+              [class.active]="selectedCategory === category"
+              (click)="setSelectedCategory(category)">
+              {{category}}
+            </button>
+          </div>
+
+          <!-- Module Grid -->
+          <div class="module-selection-grid">
+            <div 
+              *ngFor="let module of filteredModules" 
+              class="module-card"
+              [class.selected]="isModuleSelected(module.id)"
+              (click)="toggleModule(module)">
+              
+              <div class="module-card-header">
+                <div class="module-checkbox-container">
+                  <input 
+                    type="checkbox" 
+                    [checked]="isModuleSelected(module.id)"
+                    (change)="toggleModule(module)"
+                    class="module-checkbox"
+                    [id]="'module-' + module.id">
+                  <label [for]="'module-' + module.id" class="module-checkbox-label"></label>
+                </div>
+                <div class="module-info">
+                  <h4 class="module-name">{{module.name}}</h4>
+                  <span class="module-category-badge">{{module.category}}</span>
+                </div>
+              </div>
+
+              <p class="module-description">{{module.description}}</p>
+
+              <div class="module-features">
+                <h5>Key Features:</h5>
+                <ul class="features-list">
+                  <li *ngFor="let feature of module.features.slice(0, 3)">{{feature}}</li>
+                  <li *ngIf="module.features.length > 3" class="more-features">
+                    +{{module.features.length - 3}} more features
+                  </li>
+                </ul>
+              </div>
+
+              <div class="module-footer">
+                <div class="module-price-container">
+                  <span class="module-price">${{module.price}}</span>
+                  <span class="price-period">/month</span>
+                </div>
+                <div class="module-status" [class.active]="module.isActive">
+                  {{module.isActive ? 'Available' : 'Coming Soon'}}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Module Summary -->
+          <div class="module-summary">
+            <div class="summary-content">
+              <div class="summary-item">
+                <span class="summary-label">Selected Modules:</span>
+                <strong class="summary-value">{{getSelectedModulesCount()}}</strong>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Monthly Cost:</span>
+                <strong class="summary-value">${{totalPrice}}</strong>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Annual Cost:</span>
+                <strong class="summary-value annual">${{totalPrice * 12}} <span class="savings">(Save ${{totalPrice * 1.2}})</span></strong>
+              </div>
+            </div>
+            <div class="summary-actions">
+              <button type="button" class="btn-link" (click)="selectAllModules()">Select All</button>
+              <button type="button" class="btn-link" (click)="clearAllModules()">Clear All</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Actions -->
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" routerLink="/tenants">
+        Cancel
+      </button>
+      <button type="submit" class="btn-primary" [disabled]="saving || !tenantForm.valid">
+        {{saving ? '🚀 Creating Tenant...' : (isEditMode ? '💾 Update Tenant' : '🚀 Create Tenant')}}
+      </button>
+    </div>
+
+    <!-- Provisioning Progress -->
+    <div *ngIf="saving && !isEditMode" class="provisioning-progress">
+      <h4>🚀 Setting up your tenant...</h4>
+      <div class="progress-steps">
+        <div class="progress-step" [class.active]="currentStep >= 1" [class.completed]="currentStep > 1">
+          <span class="step-number">1</span>
+          <span class="step-label">Creating tenant</span>
+        </div>
+        <div class="progress-step" [class.active]="currentStep >= 2" [class.completed]="currentStep > 2">
+          <span class="step-number">2</span>
+          <span class="step-label">Setting up admin user</span>
+        </div>
+        <div class="progress-step" [class.active]="currentStep >= 3" [class.completed]="currentStep > 3">
+          <span class="step-number">3</span>
+          <span class="step-label">Configuring modules</span>
+        </div>
+        <div class="progress-step" [class.active]="currentStep >= 4" [class.completed]="currentStep > 4">
+          <span class="step-number">4</span>
+          <span class="step-label">Generating API key</span>
+        </div>
+        <div class="progress-step" [class.active]="currentStep >= 5" [class.completed]="currentStep > 5">
+          <span class="step-number">5</span>
+          <span class="step-label">Sending welcome email</span>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
