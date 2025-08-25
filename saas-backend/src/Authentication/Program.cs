@@ -56,6 +56,12 @@ builder.Services.AddSingleton(serviceProvider =>
 builder.Services.AddScoped<ICosmosDbService, CosmosDbService>();
 builder.Services.AddScoped<IApiKeyService, ApiKeyService>();
 
+// Add JWT Service for tenant context middleware
+var jwtSecret = builder.Configuration["JWT:Secret"] ?? "your-super-secret-key-that-is-at-least-32-characters-long";
+var jwtIssuer = builder.Configuration["JWT:Issuer"] ?? "SaaSFramework";
+var jwtAudience = builder.Configuration["JWT:Audience"] ?? "SaaSFramework";
+builder.Services.AddSingleton<IJwtService>(new JwtService(jwtSecret, jwtIssuer, jwtAudience));
+
 // Replace existing JWT authentication with Azure AD B2C
 builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration, "AzureAdB2C");
 builder.Services.AddAuthorization();

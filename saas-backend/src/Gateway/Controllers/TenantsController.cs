@@ -71,7 +71,8 @@ public class TenantsController : ControllerBase
         {
             _logger.LogInformation("Getting tenants - Page: {Page}, PageSize: {PageSize}", page, pageSize);
             
-            var tenants = await _cosmosDbService.GetItemsAsync<Tenant>(ContainerName, "tenant");
+            // Use cross-partition query to get all tenants from all partitions
+            var tenants = await _cosmosDbService.GetAllItemsAsync<Tenant>(ContainerName);
             
             // Apply filters
             var filteredTenants = tenants.AsQueryable();

@@ -6,6 +6,7 @@ import { ApiService } from '../../../services/api.service';
 import { SharedEventsService } from '../../../shared/services/events.service';
 import { DialogService } from '../../../shared/services/dialog.service';
 import { TenantDetailsModalComponent } from '../tenant-details-modal/tenant-details-modal.component';
+import { Tenant, TenantsApiResponse, getTenantStatusDisplay, getTenantStatusClass } from '../../../shared/models/tenant.interface';
 
 @Component({
   selector: 'app-tenant-list',
@@ -95,8 +96,8 @@ import { TenantDetailsModalComponent } from '../tenant-details-modal/tenant-deta
                 </div>
               </td>
               <td class="status-cell">
-                <span class="status-badge" [class]="'status-' + (tenant.status || 'active').toLowerCase()">
-                  {{tenant.status || 'Active'}}
+                <span class="status-badge" [class]="getTenantStatusClass(tenant.status)">
+                  {{getTenantStatusDisplay(tenant.status)}}
                 </span>
               </td>
               <td class="plan-cell">
@@ -874,7 +875,7 @@ export class TenantListComponent implements OnInit {
   // Expose Math for template
   Math = Math;
 
-  tenants: any[] = [];
+  tenants: Tenant[] = [];
   
   // Sorting state
   sortField = 'createdAt';
@@ -882,7 +883,11 @@ export class TenantListComponent implements OnInit {
   
   // Modal state
   showDetailsModal = false;
-  selectedTenant: any = null;
+  selectedTenant: Tenant | null = null;
+
+  // Expose helper functions for template
+  getTenantStatusDisplay = getTenantStatusDisplay;
+  getTenantStatusClass = getTenantStatusClass;
 
   constructor(
     private apiService: ApiService,
@@ -911,17 +916,26 @@ export class TenantListComponent implements OnInit {
     
     // Call the API to get tenants
     this.apiService.getTenants(this.currentPage, this.pageSize, this.searchTerm, this.statusFilter).subscribe({
-      next: (response) => {
+      next: (response: TenantsApiResponse | any) => {
         console.log('📄 Received tenant data:', response);
         console.log('📄 Response type:', typeof response);
         console.log('📄 Response keys:', response ? Object.keys(response) : 'null');
         console.log('📄 Is Array:', Array.isArray(response));
         
-        // Handle the API response - check if it's wrapped in an object or direct array
-        if (Array.isArray(response)) {
-          // Direct array format - this is what our API returns
+        // Handle the new API response format: {success: true, data: {items: [...], totalCount: 19}}
+        if (response && response.success && response.data && response.data.items) {
+          console.log('✅ Processing new API response format with', response.data.items.length, 'tenants');
+          
+          this.tenants = response.data.items as Tenant[];
+          this.totalCount = response.data.totalCount || 0;
+          this.totalPages = response.data.totalPages || Math.ceil(this.totalCount / this.pageSize);
+          this.hasNextPage = response.data.hasNextPage || false;
+          this.hasPreviousPage = response.data.hasPreviousPage || false;
+          
+        } else if (Array.isArray(response)) {
+          // Fallback: Direct array format (for backward compatibility)
           console.log('✅ Processing direct array response with', response.length, 'tenants');
-          this.tenants = [...response]; // Create new array reference for change detection
+          this.tenants = [...response] as Tenant[];
           this.totalCount = response.length;
           this.totalPages = Math.ceil(this.totalCount / this.pageSize);
           
@@ -930,6 +944,14 @@ export class TenantListComponent implements OnInit {
           this.hasPreviousPage = this.currentPage > 1;
           
           console.log('✅ Tenants array set with', this.tenants.length, 'items');
+        } else if (response && response.data && response.data.items && Array.isArray(response.data.items)) {
+          // API Response format: { success: true, data: { items: [...], totalCount: X } }
+          console.log('✅ Processing API response data.items format with', response.data.items.length, 'tenants');
+          this.tenants = [...response.data.items];
+          this.totalCount = response.data.totalCount || response.data.items.length;
+          this.totalPages = response.data.totalPages || Math.ceil(this.totalCount / this.pageSize);
+          this.hasNextPage = response.data.hasNextPage || false;
+          this.hasPreviousPage = response.data.hasPreviousPage || false;
         } else if (response && response.items && Array.isArray(response.items)) {
           // New paginated format with items property
           console.log('✅ Processing items format with', response.items.length, 'tenants');

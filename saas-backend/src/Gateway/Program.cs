@@ -81,14 +81,28 @@ app.UseMiddleware<TenantContextMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Map controllers for tenant management
+// Map controllers for tenant management BEFORE YARP so they take precedence
 app.MapControllers();
 
-// Map YARP routes
+// Map YARP routes for other services
 app.MapReverseProxy();
 
 // Health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+
+// Test endpoint for Cosmos DB
+app.MapGet("/test-cosmos", async (ICosmosDbService cosmosDbService) =>
+{
+    try
+    {
+        var tenants = await cosmosDbService.GetAllItemsAsync<object>("tenants");
+        return Results.Ok(new { status = "success", count = tenants?.Count() ?? 0, tenants = tenants?.Take(5) });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Cosmos DB Error: {ex.Message}");
+    }
+});
 
 try
 {

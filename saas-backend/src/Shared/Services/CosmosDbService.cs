@@ -8,6 +8,7 @@ public interface ICosmosDbService
 {
     Task<T?> GetItemAsync<T>(string id, string partitionKey, string containerName) where T : class;
     Task<List<T>> GetItemsAsync<T>(string containerName, string partitionKey, Expression<Func<T, bool>>? filter = null) where T : class;
+    Task<List<T>> GetAllItemsAsync<T>(string containerName, Expression<Func<T, bool>>? filter = null) where T : class;
     Task<PagedResult<T>> GetPagedItemsAsync<T>(string containerName, string partitionKey, int page, int pageSize, Expression<Func<T, bool>>? filter = null) where T : class;
     Task<T> CreateItemAsync<T>(T item, string containerName) where T : class;
     Task<T> UpdateItemAsync<T>(T item, string containerName, string partitionKey) where T : class;
@@ -58,6 +59,37 @@ public class CosmosDbService : ICosmosDbService
             requestOptions: new QueryRequestOptions
             {
                 PartitionKey = new PartitionKey(partitionKey)
+            });
+
+        var results = new List<T>();
+        while (query.HasMoreResults)
+        {
+            var response = await query.ReadNextAsync();
+            results.AddRange(response);
+        }
+
+        // Apply filter in memory if provided
+        if (filter != null)
+        {
+            var compiledFilter = filter.Compile();
+            results = results.Where(compiledFilter).ToList();
+        }
+
+        return results;
+    }
+
+    public async Task<List<T>> GetAllItemsAsync<T>(string containerName, Expression<Func<T, bool>>? filter = null) where T : class
+    {
+        var container = _database.GetContainer(containerName);
+        
+        var queryDefinition = new QueryDefinition("SELECT * FROM c");
+
+        var query = container.GetItemQueryIterator<T>(
+            queryDefinition,
+            requestOptions: new QueryRequestOptions
+            {
+                // Cross-partition query
+                PartitionKey = null
             });
 
         var results = new List<T>();
